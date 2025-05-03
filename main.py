@@ -1,1 +1,7 @@
-print(12)
+import bot
+def main():
+    bot.main()
+
+
+if __name__ == "__main__":
+    main()
