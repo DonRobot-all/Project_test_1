@@ -1,5 +1,7 @@
 import asyncio
 import os
+import sqlite3
+
 from aiogram import Bot, Dispatcher, F
 from aiogram.enums import ParseMode
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
@@ -11,6 +13,9 @@ from dotenv import load_dotenv
 # Загрузка токена из .env
 load_dotenv()
 API_TOKEN = os.getenv("BOT_TOKEN")
+
+conn = sqlite3.connect('project_db.db')
+cursor = conn.cursor()
 
 # FSM состояния
 class Form(StatesGroup):
@@ -71,7 +76,19 @@ async def phone_chosen(message: Message, state: FSMContext):
 async def residence_chosen(message: Message, state: FSMContext):
     await state.update_data(residence=message.text)
     data = await state.get_data()
+    print(  data['name'],
+            data['phone'],
+            data['residence'])
     await message.answer(f"Твои данные {data}")
+    cursor.executemany('''
+        INSERT INTO Owners (full_name, phone, residence)
+        VALUES (?, ?, ?)
+        ''', [
+            (data['name'],
+            data['phone'],
+            data['residence'])
+        ])
+    conn.commit()
     await state.clear()
 
 # Обработка участия
