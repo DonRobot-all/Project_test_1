@@ -71,14 +71,14 @@ async def phone_chosen(message: Message, state: FSMContext):
 async def residence_chosen(message: Message, state: FSMContext):
     await state.update_data(residence=message.text)
     data = await state.get_data()
-    await message.answer(data)
+    await message.answer(f"Твои данные {data}")
     await state.clear()
 
 # Обработка участия
-async def residence_chosen(message: Message, state: FSMContext):
+async def participation_chosen(message: Message, state: FSMContext):
     await state.update_data(participation=message.text)
     data = await state.get_data()
-    await message.answer(data)
+    await message.answer(f"Твои данные {data}")
     await state.clear()
 
 
@@ -94,9 +94,11 @@ async def main():
 
     dp.message.register(cmd_start, F.text == "/start")
     dp.message.register(cancel_handler, F.text == "/cancel")
-    dp.message.register(gender_chosen, Form.gender)
+    dp.message.register(role_chosen, Form.role)
     dp.message.register(name_chosen, Form.name)
-    dp.message.register(second_name_chosen, Form.second_name)
+    dp.message.register(phone_chosen, Form.phone)
+    dp.message.register(residence_chosen, Form.residence)
+    dp.message.register(participation_chosen, Form.participation)
 
     await dp.start_polling(bot)
 
