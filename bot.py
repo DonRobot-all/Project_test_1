@@ -12,7 +12,8 @@ from dotenv import load_dotenv
 
 # Загрузка токена из .env
 load_dotenv()
-API_TOKEN = os.getenv("BOT_TOKEN")
+# API_TOKEN = os.getenv("BOT_TOKEN")
+API_TOKEN = '6323398788:AAHSxJhtZZDre0L98VR_zayvR_BqPQ91SnE'
 
 conn = sqlite3.connect('project_db.db')
 cursor = conn.cursor()
@@ -48,10 +49,6 @@ async def role_chosen(message: Message, state: FSMContext):
     await state.update_data(role=message.text)
     await message.answer("Напиши своё имя", reply_markup=ReplyKeyboardRemove())
     await state.set_state(Form.name)
-    # if message.text == "👦 Мальчик":
-    #     await state.set_state(Form.name)
-    # else:
-    #     await state.set_state(Form.second_name)
 
 # Обработка имени
 async def name_chosen(message: Message, state: FSMContext):
@@ -96,6 +93,15 @@ async def participation_chosen(message: Message, state: FSMContext):
     await state.update_data(participation=message.text)
     data = await state.get_data()
     await message.answer(f"Твои данные {data}")
+    cursor.executemany('''
+        INSERT INTO Seekers (name, phone, participation)
+        VALUES (?, ?, ?)
+        ''', [
+            (data['name'],
+            data['phone'],
+            data['participation'])
+        ])
+    conn.commit()
     await state.clear()
 
 
