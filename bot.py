@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 # Загрузка токена из .env
 load_dotenv()
 # API_TOKEN = os.getenv("BOT_TOKEN")
-API_TOKEN = ''
+API_TOKEN = '6323398788:AAHSxJhtZZDre0L98VR_zayvR_BqPQ91SnE'
 
 conn = sqlite3.connect('project_db.db')
 cursor = conn.cursor()
@@ -29,6 +29,10 @@ class Form(StatesGroup):
     residence = State()
     participation = State()
 
+
+class FindForm(StatesGroup):
+    dog = State()
+
 role_kb = InlineKeyboardMarkup(inline_keyboard=[
     [
         InlineKeyboardButton(text="Я ищу", callback_data="Я ищу"),
@@ -41,6 +45,13 @@ async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
     await message.answer("Привет! Тебе нужна помощь или ты хочешь помочь?", reply_markup=role_kb)
     await state.set_state(Form.role)
+
+
+@dp.message(F.text == "/find")
+async def find_command_handler(message: Message, state):
+    await message.answer("Что ты хочешь найти?")
+    await state.set_state(FindForm.dog)
+
 
 @dp.callback_query(lambda c: c.data == "Я ищу")
 async def handle_yes(callback: CallbackQuery, state):
@@ -112,6 +123,24 @@ async def participation_chosen(message: Message, state: FSMContext):
     await state.clear()
 
 
+# Обработка собаки
+async def dog_chosen(message: Message, state: FSMContext):
+    await state.update_data(dog=message.text)
+    data = await state.get_data()
+
+    await message.answer(f"Твои данные {data}")
+    # cursor.executemany('''
+    #     INSERT INTO Seekers (name, phone, participation)
+    #     VALUES (?, ?, ?)
+    #     ''', [
+    #         (data['name'],
+    #         data['phone'],
+    #         data['participation'])
+    #     ])
+    # conn.commit()
+    # await state.clear()
+
+
 # /cancel
 async def cancel_handler(message: Message, state: FSMContext):
     await state.clear()
@@ -124,12 +153,11 @@ async def main():
 
     dp.message.register(cmd_start, F.text == "/start")
     dp.message.register(cancel_handler, F.text == "/cancel")
-    # dp.message.register(role_chosen, Form.role)
     dp.message.register(name_chosen, Form.name)
     dp.message.register(phone_chosen, Form.phone)
     dp.message.register(residence_chosen, Form.residence)
     dp.message.register(participation_chosen, Form.participation)
-
+    dp.message.register(dog_chosen, FindForm.dog)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
