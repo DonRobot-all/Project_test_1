@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 # Загрузка токена из .env
 load_dotenv()
 # API_TOKEN = os.getenv("BOT_TOKEN")
-API_TOKEN = '6323398788:AAHSxJhtZZDre0L98VR_zayvR_BqPQ91SnE'
+API_TOKEN = ''
 
 conn = sqlite3.connect('project_db.db')
 cursor = conn.cursor()
