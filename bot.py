@@ -4,7 +4,7 @@ import sqlite3
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.enums import ParseMode
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton,CallbackQuery, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.client.default import DefaultBotProperties
@@ -18,6 +18,9 @@ API_TOKEN = ''
 conn = sqlite3.connect('project_db.db')
 cursor = conn.cursor()
 
+bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+dp = Dispatcher()
+
 # FSM состояния
 class Form(StatesGroup):
     role = State()
@@ -26,15 +29,12 @@ class Form(StatesGroup):
     residence = State()
     participation = State()
 
-# Клавиатура выбора пола
-role_kb = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="Я ищу")],
-        [KeyboardButton(text="Я хочу помочь найти")]
-    ],
-    resize_keyboard=True,
-    one_time_keyboard=True
-)
+role_kb = InlineKeyboardMarkup(inline_keyboard=[
+    [
+        InlineKeyboardButton(text="Я ищу", callback_data="Я ищу"),
+        InlineKeyboardButton(text="Я хочу помочь найти", callback_data="Я хочу помочь найти")
+    ]
+])
 
 # /start
 async def cmd_start(message: Message, state: FSMContext):
@@ -42,13 +42,20 @@ async def cmd_start(message: Message, state: FSMContext):
     await message.answer("Привет! Тебе нужна помощь или ты хочешь помочь?", reply_markup=role_kb)
     await state.set_state(Form.role)
 
-# Обработка роли
-async def role_chosen(message: Message, state: FSMContext):
-    if message.text not in ["Я ищу", "Я хочу помочь найти"]:
-        return await message.answer("Пожалуйста, выбери вариант с клавиатуры.")
-    await state.update_data(role=message.text)
-    await message.answer("Напиши своё имя", reply_markup=ReplyKeyboardRemove())
+@dp.callback_query(lambda c: c.data == "Я ищу")
+async def handle_yes(callback: CallbackQuery, state):
+    await state.update_data(role='Я ищу')
+    await callback.answer()
+    await callback.message.answer("Напиши своё имя")
     await state.set_state(Form.name)
+
+@dp.callback_query(lambda c: c.data == "Я хочу помочь найти")
+async def handle_yes(callback: CallbackQuery, state):
+    await state.update_data(role='Я хочу помочь найти')
+    await callback.answer()
+    await callback.message.answer("Напиши своё имя")
+    await state.set_state(Form.name)
+
 
 # Обработка имени
 async def name_chosen(message: Message, state: FSMContext):
@@ -112,12 +119,12 @@ async def cancel_handler(message: Message, state: FSMContext):
 
 # Запуск бота
 async def main():
-    bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-    dp = Dispatcher()
+    # bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    # dp = Dispatcher()
 
     dp.message.register(cmd_start, F.text == "/start")
     dp.message.register(cancel_handler, F.text == "/cancel")
-    dp.message.register(role_chosen, Form.role)
+    # dp.message.register(role_chosen, Form.role)
     dp.message.register(name_chosen, Form.name)
     dp.message.register(phone_chosen, Form.phone)
     dp.message.register(residence_chosen, Form.residence)
