@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS Dogs (
     dog_id INTEGER PRIMARY KEY AUTOINCREMENT,
     name VARCHAR(50) UNIQUE NOT NULL,
     breed VARCHAR(50) NOT NULL,
-    photo
+    photo BLOB
 );
 ''')
 
