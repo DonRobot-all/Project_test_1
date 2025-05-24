@@ -4,19 +4,25 @@ import sqlite3
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.enums import ParseMode
-from aiogram.types import Message, FSInputFile, KeyboardButton,CallbackQuery, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import Message, FSInputFile,ReplyKeyboardMarkup ,KeyboardButton,CallbackQuery, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.client.default import DefaultBotProperties
 from dotenv import load_dotenv
-
-# Загрузка токена из .env
-load_dotenv()
-# API_TOKEN = os.getenv("BOT_TOKEN")
-API_TOKEN = '7228651021:AAF2mFoe0bC0BL5bngUtqvwggkOL2iPNeGM'
+ 
+load_dotenv(override=True)  
+loaded = load_dotenv() 
+API_TOKEN = os.getenv("BOT_TOKEN")
 
 conn = sqlite3.connect('project_db.db')
 cursor = conn.cursor()
+
+try:
+    cursor.execute("ALTER TABLE Dogs ADD COLUMN radius REAL")
+    cursor.execute("ALTER TABLE Dogs ADD COLUMN latitude REAL;")
+    cursor.execute("ALTER TABLE Dogs ADD COLUMN longitude REAL;")
+except sqlite3.OperationalError as e:
+    print("Столбцы уже существуют:", e)
 
 bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
@@ -33,7 +39,9 @@ class Form(StatesGroup):
 class FindForm(StatesGroup):
     dog = State()
     breed = State()
+    location = State() 
     photo = State()
+    radius = State()
 
 role_kb = InlineKeyboardMarkup(inline_keyboard=[
     [
@@ -141,10 +149,28 @@ async def dog_chosen(message: Message, state: FSMContext):
 
 
 # Обработка породы собаки
+# async def breed_chose(message: Message, state: FSMContext):
+#     await state.update_data(breed=message.text)
+#     await message.answer("Теперь отправьте фото собаки:")
+#     await state.set_state(FindForm.photo)
 async def breed_chose(message: Message, state: FSMContext):
     await state.update_data(breed=message.text)
-    await message.answer("Теперь отправьте фото собаки:")
+    location_kb = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="Отправить местоположение", request_location=True)]
+        ],
+        resize_keyboard=True
+    )
+    await message.answer("Укажите место, где потеряна собака (или отправьте геопозицию):", reply_markup=location_kb)
+    await state.set_state(FindForm.location)
+
+async def location_chose(message: Message, state: FSMContext):
+    lat = message.location.latitude
+    lon = message.location.longitude
+    await state.update_data(location=f"{lat},{lon}")
+    await message.answer("Теперь отправьте фото собаки:", reply_markup=ReplyKeyboardRemove())
     await state.set_state(FindForm.photo)
+
 
 async def photo_chose(message: Message, state: FSMContext):
     photo = message.photo[-1]
@@ -154,11 +180,32 @@ async def photo_chose(message: Message, state: FSMContext):
     data = await state.get_data()
     name = data["dog"]
     breed = data["breed"]
-    cursor.execute("INSERT INTO Dogs (name, breed, photo) VALUES (?, ?, ?)", (name, breed, photo_bytes))
+    lat, lon = data['location'].split(',')
+    print(lat, lon)
+    cursor.execute(
+        "INSERT INTO Dogs (name, breed, photo, latitude, longitude) VALUES (?, ?, ?, ?, ?)",
+        (name, breed, photo_bytes, lat, lon)
+    )
+    # cursor.execute("INSERT INTO Dogs (name, breed, photo) VALUES (?, ?, ?)", (name, breed, photo_bytes))
     conn.commit()
-    await message.answer(f"Собака {name} добавлена!")
-    await state.clear()
+    await message.answer(f"Собака {name,breed, lat, lon} добавлена!")
+    await message.answer("Укажите радиус поиска в км (например, 5):")
+    await state.set_state(FindForm.radius)
 
+async def radius_chose(message: Message, state: FSMContext):
+    radius = int(message.text)
+    await state.update_data(radius=radius)
+    data = await state.get_data()
+    cursor.execute(
+        "UPDATE Dogs SET radius = ? WHERE name = ?",
+        (radius, data['dog'])
+    )
+    await message.answer(f"Радиус поиска установлен: {radius} км")
+
+
+async def send_map(callback: CallbackQuery, lat: float, lon: float):
+    map_url = f"https://static-maps.yandex.ru/1.x/?ll={lon},{lat}&size=600,300&z=14&l=map&pt={lon},{lat},pm2dbl"
+    await callback.message.answer_photo(map_url, caption="Местоположение собаки")
 
 # выводим всех собак после команды /list 
 @dp.message(F.text == "/list")
@@ -182,17 +229,24 @@ async def list_dogs(message: Message):
 async def send_dog_photo(callback: CallbackQuery):
     dog_name = callback.data.split(":")[1]
 
-    cursor.execute("SELECT breed, photo FROM Dogs WHERE name = ?", (dog_name,))
+    # cursor.execute("SELECT breed, photo FROM Dogs WHERE name = ?", (dog_name,))
+    cursor.execute(
+        "SELECT breed, photo, latitude, longitude FROM Dogs WHERE name = ?", 
+        (dog_name,)
+    )
     row = cursor.fetchone()
 
     if row:
-        breed, photo_blob = row
+        breed, photo_blob, lat, lon = row
         with open("temp.jpg", "wb") as f:
             f.write(photo_blob)
 
         photo = FSInputFile("temp.jpg")
         await callback.message.answer_photo(photo, caption=f"{dog_name}\n Порода: {breed}")
         os.remove("temp.jpg")
+        print(lat, lon)
+        if lat and lon:
+            await send_map(callback, lat, lon)
     else:
         await callback.message.answer(" не найдено.")
 
@@ -214,7 +268,9 @@ async def main():
     dp.message.register(participation_chosen, Form.participation)
     dp.message.register(dog_chosen, FindForm.dog)
     dp.message.register(breed_chose, FindForm.breed)
+    dp.message.register(location_chose, FindForm.location)
     dp.message.register(photo_chose, FindForm.photo)
+    dp.message.register(radius_chose, FindForm.radius)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
